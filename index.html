@@ -1,9 +1,20 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>오크몬트 레이싱</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=IBM+Plex+Sans+KR:wght@400;600;700&family=JetBrains+Mono:wght@500;700&display=swap">
 <style>
+/* base reset (a standalone page has no host page around it) */
+*,*::before,*::after{box-sizing:border-box}
+html,body{margin:0}
+h1,h2,h3,p,figure{margin:0}
+ol,ul{margin:0;padding:0;list-style:none}
+[hidden]{display:none!important}
 :root{
   /* Layout: full-bleed 3D coastal circuit; broadcast graphics pinned to the corners; setup docked left like a TV sheet */
   --bg:#0b1019;
@@ -218,8 +229,9 @@ input[type=number]{font-family:var(--f-mono)}
 .sharerow{display:flex;align-items:center;gap:10px}
 #shareLink{font:13px/1.4 var(--f-mono)}
 .livebadge{position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom,0px) + 10px);transform:translateX(-50%);z-index:8;font:700 12px/1 var(--f-mono);color:#fff;background:rgba(255,45,85,.9);padding:6px 10px;pointer-events:none}
-body.viewer .ctrls,body.viewer #results .btns,body.viewer #hudRerun{display:none!important}
-body.viewer .board li[data-pi]{cursor:default}
+body.viewer #setup,body.viewer #results,body.viewer .ctrls,body.viewer .board{pointer-events:none!important}
+body.viewer .share{display:none}
+.viewbadge{position:fixed;left:50%;top:calc(env(safe-area-inset-top,0px) + 6px);transform:translateX(-50%);z-index:9;font:700 11px/1 var(--f-mono);letter-spacing:.08em;color:#fff;background:rgba(255,45,85,.85);padding:5px 9px;pointer-events:none}
 @media (max-width:640px){
   :root{--side:0px}
   #stage,#tags,.hud,#count,#flash{bottom:38vh}
@@ -253,6 +265,8 @@ body.viewer .board li[data-pi]{cursor:default}
   .winfx .wf,.winfx .wf::before,.wf-name,.wf i,.live .dot,#count.pop,.banner.show,.cap.show .in,.cap.show .tx>span,.cap.hide .in{animation:none}
 }
 </style>
+</head>
+<body>
 
 <div id="stage"></div>
 <div id="tags"></div>
@@ -338,6 +352,7 @@ body.viewer .board li[data-pi]{cursor:default}
 </div>
 
 <div class="overlay center" id="watchWait" hidden><div class="sheet"><p class="eyebrow">OAKMONT RACING · LIVE</p><h1>방장 화면 시청</h1><p class="lede" id="watchMsg"></p></div></div>
+<div class="viewbadge" id="viewBadge" hidden>● LIVE · 방장 화면 실시간 시청 중</div>
 <div class="livebadge" id="liveBadge" hidden>● 방송 공유 중 · 시청 <b id="liveBadgeN">0</b>명</div>
 <div class="overlay center" id="results" hidden>
   <div class="sheet">
@@ -2638,6 +2653,7 @@ function hostPublishRace(people,laps,seed){if(SYNC.role!=='host')return;SYNC.sta
   syncPub('state',{status:'race',seq:SYNC.stateSeq+'_'+Date.now(),entries:people.map(p=>({name:p.name,count:p.count})),laps,seed,startAt:firebase.database.ServerValue.TIMESTAMP});
   syncPub('cap',null);syncPub('snap',null);syncPub('clock',null);syncPub('final',null);}
 function hostTick(now){
+  hostUiTick(now);
   if(SYNC.role!=='host'||!race)return;
   if(race.allDone)hostFinal();
   if((phase==='race'||phase==='results')&&now-SYNC.clockAt>1000){SYNC.clockAt=now;syncPub('clock',{n:race.n||0,sp:speedF,sl:+slowF.toFixed(3),at:firebase.database.ServerValue.TIMESTAMP});}
@@ -2648,10 +2664,13 @@ function hostTick(now){
   const k=JSON.stringify(o);if(k!==SYNC.camKey&&now-SYNC.camAt>120){SYNC.camKey=k;SYNC.camAt=now;syncPub('cam',o);}
 }
 function hostFinal(){if(SYNC.role!=='host'||!race||race.finalSent)return;race.finalSent=true;syncPub('final',{seq:SYNC.stateSeq,o:race.finishOrder.map(c=>c.id+':'+Math.round(c.ft*1000)).join(',')});}
+function hostUiTick(now){if(SYNC.role!=='host'||now-(SYNC.uiAt||0)<150)return;SYNC.uiAt=now;
+  const o={names:namesEl.value,laps:lapsSel,seed:seedEl.value,sp:speedF,cm:cam.mode,ra:performance.now()-rerunArmed<3000?1:0,err:$('err').hidden?'':$('err').textContent};
+  const k=JSON.stringify(o);if(k!==SYNC.uiKey){SYNC.uiKey=k;syncPub('ui',o);}}
 function hostCaption(e){if(SYNC.role!=='host')return;syncPub('cap',{s:++SYNC.capSeq,text:e.text,tag:e.tag,prio:e.prio});}
 /* ---- viewer ---- */
 function viewerStart(id){
-  SYNC.role='viewer';SYNC.room=id;document.body.classList.add('viewer');
+  SYNC.role='viewer';SYNC.room=id;document.body.classList.add('viewer');$('viewBadge').hidden=false;
   $('setup').hidden=true;$('watchWait').hidden=false;$('watchMsg').textContent='방장 화면에 연결하는 중…';
   if(!fbReady()){$('watchMsg').textContent='이 페이지에 Firebase 설정이 없어서 방송을 볼 수 없어요.';return;}
   syncInitFirebase().then(()=>{
@@ -2660,6 +2679,7 @@ function viewerStart(id){
     syncRef('clock').on('value',s=>{SYNC.clock=s.val();if(SYNC.clock&&race)speedF=SYNC.clock.sp||1;});
     syncRef('snap').on('value',s=>{SYNC.pendSnap=s.val();});
     syncRef('cam').on('value',s=>viewerCam(s.val()));
+    syncRef('ui').on('value',s=>viewerUi(s.val()));
     syncRef('final').on('value',s=>{const v=s.val();if(!v||!race||!v.o)return;const fo=[];v.o.split(',').forEach(x=>{const [id,ft]=x.split(':').map(Number);const c=race.cars[id];if(c){c.done=true;c.ft=ft/1000;fo.push(c);}});
       if(fo.length===race.cars.length){race.finishOrder=fo;if(phase==='results')showResults();}});
     syncRef('cap').on('value',s=>{const v=s.val();if(v&&race&&phase!=='setup')showCap({text:v.text,tag:v.tag,prio:v.prio},performance.now());});
@@ -2669,13 +2689,21 @@ function viewerState(st){
   if(!st){$('watchMsg').textContent='방장이 아직 방을 열지 않았어요.';return;}
   if(st.seq===SYNC.lastState)return;SYNC.lastState=st.seq;
   if(st.status==='setup'){stopWin();disposeRace();phase='setup';['results','hud','banner','lights'].forEach(k=>$(k).hidden=true);showCount('');
-    $('watchWait').hidden=false;$('watchMsg').textContent='방장이 다음 경기를 준비하고 있어요.';if(st.seed)buildTrack(st.seed);return;}
+    $('watchWait').hidden=true;$('setup').hidden=false;cam.cut=true;if(st.seed){seedEl.value=st.seed;buildTrack(st.seed);}updatePreview();return;}
   if(st.status==='race'){
     $('watchWait').hidden=true;startRace(st.entries||[],st.laps||1,st.seed,0);
     const el=Math.max(0,(srvNow()-(st.startAt||srvNow()))/1000);
     cdStart=performance.now()-el*1000;   // line the start lights up with the host
   }
 }
+function viewerUi(o){if(!o)return;
+  if(o.names!==undefined&&namesEl.value!==o.names){namesEl.value=o.names;updatePreview();}
+  if(o.laps&&o.laps!==lapsSel){lapsSel=o.laps;document.querySelectorAll('#lapSeg button').forEach(x=>x.classList.toggle('on',+x.dataset.l===lapsSel));updatePreview();updateTrackInfo();}
+  if(o.seed!==undefined&&seedEl.value!==o.seed)seedEl.value=o.seed;
+  if(o.sp){speedF=o.sp;$('speedBtn').textContent='배속 x'+speedF;}
+  if(o.cm)document.querySelectorAll('[data-cam]').forEach(x=>x.classList.toggle('on',x.dataset.cam===o.cm));
+  hudRerun.textContent=o.ra?'한 번 더 누르면 처음 화면으로':'새 시드로 변경';hudRerun.classList.toggle('armed',!!o.ra);
+  const er=$('err');if(o.err){er.textContent=o.err;er.hidden=false;}else er.hidden=true;}
 function viewerCam(o){
   if(!o||!race)return;
   cam.mode=o.m||'auto';cam.followP=o.f>=0?race.people[o.f]:null;
@@ -2791,7 +2819,7 @@ function want(type,c,sh){
 }
 function updateCamera(dt,order){
   let label=null;cam.focus=null;
-  if(phase==='setup'||!race){const a=performance.now()*0.00004;dPos.set(Math.cos(a)*1650,760,Math.sin(a)*1650);dLook.set(0,0,0);cam.fov=55;}
+  if(phase==='setup'||!race){const a=(Date.now()+(typeof SYNC!=='undefined'?SYNC.off:0))*0.00004%(Math.PI*2);dPos.set(Math.cos(a)*1650,760,Math.sin(a)*1650);dLook.set(0,0,0);cam.fov=55;}
   else if(phase==='countdown'){const back=Math.min(80,12+Math.ceil(race.cars.length/LANES)*ROW_GAP*0.6);
     dPos.set(S0.x+S0.tx*26,14+back*0.25,S0.z+S0.tz*26);dLook.set(S0.x-S0.tx*back,0,S0.z-S0.tz*back);label='스타트 그리드 · '+race.cars.length+'대';cam.fov=58;}
   else if(phase==='results'){const w=race.finishOrder[0]||order[0];want('heli',w);label='우승 · '+w.label;}
@@ -2992,3 +3020,5 @@ function loop(now){
 requestAnimationFrame(loop);
 })();
 </script>
+</body>
+</html>
