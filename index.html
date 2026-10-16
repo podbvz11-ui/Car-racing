@@ -15,6 +15,7 @@ html,body{margin:0}
 h1,h2,h3,p,figure{margin:0}
 ol,ul{margin:0;padding:0;list-style:none}
 [hidden]{display:none!important}
+.ver{font:500 11px/1 var(--f-mono);color:var(--muted);text-align:right;opacity:.7}
 :root{
   /* Layout: full-bleed 3D coastal circuit; broadcast graphics pinned to the corners; setup docked left like a TV sheet */
   --bg:#0b1019;
@@ -313,10 +314,9 @@ body.viewer .share{display:none}
 
 <div class="overlay" id="setup">
   <form class="sheet" id="setupForm" autocomplete="off">
-    <p class="eyebrow">SCRATTON OAKMONT PRESENTS · 테스트 버전</p>
+    <p class="eyebrow">SCRATTON OAKMONT PRESENTS</p>
     <h1>오크몬트 레이싱</h1>
     <p class="brand-en">OAKMONT RACING</p>
-    <p class="lede"><b>이름/대수</b>를 쉼표로 이어서 적어요. 대수를 안 쓰면 1대예요. 모든 차의 성능은 같고, 출발 자리는 출발 순간에 무작위로 정해져요.</p>
     <div>
       <label class="flabel" for="names">참가자 <span class="cnt">예: 치즈냥/12, 초코우유/1</span></label>
       <textarea id="names" rows="4" spellcheck="false"></textarea>
@@ -339,7 +339,6 @@ body.viewer .share{display:none}
       <span class="flabel">출발 전 승률 <span class="cnt">내 대수 ÷ 전체 대수</span></span>
       <ol class="odds" id="oddsList"></ol>
     </div>
-    <p class="hint">코스는 시드로 정해져서 시드가 바뀌면 새 코스가 나와요. 시드·명단·바퀴 수가 같으면 결과도 항상 같아요. 시드를 알면 결과를 미리 돌려볼 수 있으니, 실제 경기에서는 접수가 끝난 뒤에 공개하세요.</p>
     <div class="share">
       <span class="flabel">방송 공유 <span class="cnt">링크로 들어온 사람은 이 화면을 그대로 봐요</span></span>
       <div class="sharerow"><button type="button" class="btn-sm" id="shareBtn">공유 방 만들기</button><span class="cnt">시청자 <b id="viewerN">0</b>명</span></div>
@@ -348,6 +347,7 @@ body.viewer .share{display:none}
     </div>
     <button type="submit" class="go" id="startBtn">레이스 시작</button>
     <p class="err" id="err" hidden></p>
+    <p class="ver">v2026.10.16-3</p>
   </form>
 </div>
 
@@ -2930,7 +2930,7 @@ $('setupForm').addEventListener('submit',e=>{
   err.hidden=true;let seed=seedEl.value.trim().toUpperCase();if(!seed)seed=newSeed();seedEl.value=seed;
   startRace(people,lapsSel,seed,0);
 });
-$('replayBtn').addEventListener('click',()=>startRace(race.people,race.laps,race.seed,race.price));
+$('replayBtn').addEventListener('click',()=>{if(!race){$('results').hidden=true;$('setup').hidden=false;return;}startRace(race.people,race.laps,race.seed,race.price);});
 // mid-race restart: first click arms the button, second click within 3 s restarts with a new seed
 let rerunArmed=0;const hudRerun=$('hudRerun');
 hudRerun.addEventListener('click',()=>{if(!race)return;
@@ -2939,7 +2939,7 @@ hudRerun.addEventListener('click',()=>{if(!race)return;
   // back to the start screen with a fresh seed (entries are kept in the form)
   const s=newSeed();seedEl.value=s;stopWin();disposeRace();phase='setup';$('results').hidden=true;$('hud').hidden=true;$('banner').hidden=true;$('lights').hidden=true;showCount('');
   cam.cut=true;$('setup').hidden=false;buildTrack(s);updatePreview();});
-$('rerunBtn').addEventListener('click',()=>{const s=newSeed();seedEl.value=s;startRace(race.people,race.laps,s,race.price);});
+$('rerunBtn').addEventListener('click',()=>{if(!race){$('results').hidden=true;$('setup').hidden=false;return;}const s=newSeed();seedEl.value=s;startRace(race.people,race.laps,s,race.price);});
 $('editBtn').addEventListener('click',()=>{stopWin();disposeRace();phase='setup';$('results').hidden=true;$('hud').hidden=true;cam.cut=true;$('setup').hidden=false;updatePreview();hostPublishSetup();});
 
 /* ---------- loop ---------- */
